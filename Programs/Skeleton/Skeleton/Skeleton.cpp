@@ -209,7 +209,7 @@ public:
 
 		position = vec4(0, 0, 0);
 		scale = vec4(1000,1000,1000);
-		rotation = vec4(90.0*(3.14/180) - 0.3, 0, t);
+		rotation = vec4(-90.0*(3.14/180) + 0.3, 0, t);
 
 		// commit uniform variables
 		mat4 WorldViewRotationZ(
@@ -344,7 +344,9 @@ using namespace std;
 
 class BezierSurface {
 	vector<vector<vec4>> controlPoints;
+	vector<vector<vec4>> interpolatedPoints;
 	vector<Triangle3D> controlSurface;
+	vector<Triangle3D> interpolatedSurface;
 
 	void createControlPoints(int n) {
 		float distanceUnit = 1000 / (n - 1); // világ 1km azaz 1000m széles és hosszú
@@ -353,50 +355,101 @@ class BezierSurface {
 			// a sor tárolójának létrehozása
 			controlPoints.push_back(vector<vec4>());
 			for (size_t j = 0; j < n; j++) {
-				int x = (-500) + j * distanceUnit; // -500m és 500m közötti a világunk
-				int y = (-500) + i * distanceUnit;
-				int z = rand() % 200;
-				cout << "x: " << x << " y: " << y << " z: " << z << endl;
+				float x = (-500) + j * distanceUnit; // -500m és 500m közötti a világunk
+				float y = (-500) + i * distanceUnit;
+				float z = rand() % 500;
+				//cout << "x: " << x << " y: " << y << " z: " << z << endl;
 				controlPoints[i].push_back(vec4(x,y,z));
 			}
 		}
 	}
 
-	void drowControlSurface() {
-		for (size_t i = 0; i < controlSurface.size(); i++) {
-			controlSurface[i].Draw();
+	void createInterpolatedPoints(int m) {
+		float distanceUnit = 1.0 / (m - 1); // világ 1km azaz 1000m széles és hosszú
+
+		for (size_t i = 0; i < m; i++) {
+			// a sor tárolójának létrehozása
+			interpolatedPoints.push_back(vector<vec4>());
+			for (size_t j = 0; j < m; j++) {
+				float u = j * distanceUnit; // 0 - 1
+				float v = i * distanceUnit;
+				float z = getHeightAtPosition(u,v);
+				//cout << "x: " << x << " y: " << y << " z: " << z << endl;
+				interpolatedPoints[i].push_back(vec4(u*1000-500, v*1000-500, z));
+			}
 		}
+	}
+
+	float getHeightAtPosition(float u, float v) {
+		float z = 0;
+		for (size_t i = 0; i < controlPoints.size(); i++) {
+			for (size_t j = 0; j < controlPoints[i].size(); j++) {
+				float Wx = Weight(controlPoints[i].size()-1, j, u);
+				float Wy = Weight(controlPoints.size()-1, i, v);
+				z += Wx*Wy*controlPoints[i][j]['z'];
+			}
+		}
+		return z;
+	}
+
+	float Weight(size_t n, size_t i, float u) {
+		return ((float)factorial(n) / (factorial(i)*factorial(n - i)) * pow(u, i) * pow(1 - u, n - i));
+	}
+
+	// jó
+	size_t factorial(size_t n) {
+		if (n == 0) return 1;
+		else return n*factorial(n - 1);
+	}
+
+	void drawSurface(vector<Triangle3D> surface) {
+		for (size_t i = 0; i < surface.size(); i++) {
+			surface[i].Draw();
+		}
+	}
+
+	vector<Triangle3D> createSurface(vector<vector<vec4>> points) {
+		vector<Triangle3D> surface;
+		// sorok
+		for (size_t i = 0; i < points.size() - 1; i++) {
+			//cout << "i: " << i << endl;
+			// pontok egy soron belül
+			for (size_t j = 0; j < points[i].size() - 1; j++) {
+				//cout << "j: " << j << endl;
+				surface.push_back(Triangle3D(
+					points[i][j],
+					points[i][j + 1],
+					points[i + 1][j]
+				));
+				surface.push_back(Triangle3D(
+					points[i][j + 1],
+					points[i + 1][j],
+					points[i + 1][j + 1]
+				));
+			}
+		}
+
+		return surface;
 	}
 
 public:
 	// default constructor
 	BezierSurface() {
-		createControlPoints(5);
+		createControlPoints(4);
+		createInterpolatedPoints(20);
 	}
 
 	void draw() {
-		drowControlSurface();
+		drawSurface(controlSurface);
+		drawSurface(interpolatedSurface);
 	}
 
 	void createControlSurface() {
-		// sorok
-		for (size_t i = 0; i < controlPoints.size() - 1; i++) {
-			//cout << "i: " << i << endl;
-			// pontok egy soron belül
-			for (size_t j = 0; j < controlPoints[i].size() - 1; j++) {
-				//cout << "j: " << j << endl;
-				controlSurface.push_back(Triangle3D(
-					controlPoints[i][j],
-					controlPoints[i][j + 1],
-					controlPoints[i + 1][j]
-				));
-				controlSurface.push_back(Triangle3D(
-					controlPoints[i][j + 1],
-					controlPoints[i + 1][j],
-					controlPoints[i + 1][j + 1]
-				));
-			}
-		}
+		controlSurface = createSurface(controlPoints);
+	}
+
+	void createInterpolatedSurface() {
+		interpolatedSurface = createSurface(interpolatedPoints);
 	}
 };
 
@@ -462,6 +515,7 @@ void onInitialization() {
 	triangles.push_back(new Triangle3D(vec4(5, -5, 5), vec4(-5, -5, 5), vec4(5, -5, -5)));
 
 	BS.createControlSurface();
+	BS.createInterpolatedSurface();
 }
 
 void onExit() {
