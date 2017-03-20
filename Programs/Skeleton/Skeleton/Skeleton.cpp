@@ -189,7 +189,7 @@ struct vec4 {
 		return vec4(v[0] + p.v[0], v[1] + p.v[1], v[2] + p.v[2]);
 	}
 
-	float operator[](char c) {
+	float& operator[](char c) {
 		if (c == 'x') return v[0];
 		if (c == 'y') return v[1];
 		if (c == 'z') return v[2];
@@ -408,6 +408,7 @@ class BezierSurface {
 	vector<Triangle3D> interpolatedSurface;
 
 	void createControlPoints(int n) {
+		n = 5;
 		float distanceUnit = 1000 / (n - 1); // világ 1km azaz 1000m széles és hosszú
 
 		for (size_t i = 0; i < n; i++) {
@@ -420,6 +421,36 @@ class BezierSurface {
 				controlPoints[i].push_back(vec4(x,y,z));
 			}
 		}
+		
+		controlPoints[0][0]['z'] = 0;
+		controlPoints[0][1]['z'] = 300;
+		controlPoints[0][2]['z'] = 300;
+		controlPoints[0][3]['z'] = 0;
+		controlPoints[0][4]['z'] = 0;
+
+		controlPoints[1][0]['z'] = 500;
+		controlPoints[1][1]['z'] = 0;
+		controlPoints[1][2]['z'] = 300;
+		controlPoints[1][3]['z'] = 300;
+		controlPoints[1][4]['z'] = 0;
+
+		controlPoints[2][0]['z'] = 500;
+		controlPoints[2][1]['z'] = 0;
+		controlPoints[2][2]['z'] = 0;
+		controlPoints[2][3]['z'] = 300;
+		controlPoints[2][4]['z'] = 0;
+
+		controlPoints[3][0]['z'] = 0;
+		controlPoints[3][1]['z'] = 300;
+		controlPoints[3][2]['z'] = 300;
+		controlPoints[3][3]['z'] = 500;
+		controlPoints[3][4]['z'] = 500;
+
+		controlPoints[4][0]['z'] = 0;
+		controlPoints[4][1]['z'] = 0;
+		controlPoints[4][2]['z'] = 0;
+		controlPoints[4][3]['z'] = 500;
+		controlPoints[4][4]['z'] = 500;
 	}
 
 	void createInterpolatedPoints(int m) {
@@ -626,7 +657,7 @@ public:
 	}
 
 	void draw() {
-		controlLine.Draw();
+		//controlLine.Draw();
 		interpolatedLine.Draw();
 	}
 };
