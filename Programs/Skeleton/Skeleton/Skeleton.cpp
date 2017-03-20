@@ -100,7 +100,6 @@ const char * vertexSource = R"(
 	#version 330
     precision highp float;
 
-	//uniform mat4 MVP;			// Model-View-Projection matrix in row-major format
 	uniform mat4 ModelWorldScale;
 	uniform mat4 ModelWorldRotation;
 	uniform mat4 ModelWorldTranslation;
@@ -111,14 +110,12 @@ const char * vertexSource = R"(
 	out vec3 color;									// output attribute
 
 	void main() {
-		color = vec3(1.0,1.0,1.0);//vec3(vertexPosition.z/2.0,vertexPosition.z/2.0,vertexPosition.z/2.0);//vertexColor;														// copy color from input to output
+		color = vec3(0.0,1.0-vertexPosition.z/500.0,vertexPosition.z/500.0);
 		gl_Position = vec4(vertexPosition.x, vertexPosition.y, vertexPosition.z, 1)
 						*ModelWorldScale
 						*ModelWorldRotation
 						*ModelWorldTranslation
 						*WorldView;
-						
-		 //* MVP; 		// transform to clipping space
 	}
 )";
 
@@ -209,7 +206,8 @@ public:
 
 		position = vec4(0, 0, 0);
 		scale = vec4(1000,1000,1000);
-		rotation = vec4(-90.0*(3.14/180) + 0.3, 0, t);
+		rotation = vec4(-90.0*(3.14 / 180) + 0.3, 0, t);
+		//rotation = vec4(0,0,0);
 
 		// commit uniform variables
 		mat4 WorldViewRotationZ(
@@ -336,7 +334,7 @@ public:
 		else printf("uniform MVP cannot be set\n");
 
 		glBindVertexArray(vao);	// make the vao and its vbos active playing the role of the data source
-		glDrawArrays(GL_LINE_LOOP, 0, 3);	// draw a single triangle with vertices defined in vao
+		glDrawArrays(GL_TRIANGLES, 0, 3);	// draw a single triangle with vertices defined in vao
 	}
 };
 
@@ -358,14 +356,13 @@ class BezierSurface {
 				float x = (-500) + j * distanceUnit; // -500m és 500m közötti a világunk
 				float y = (-500) + i * distanceUnit;
 				float z = rand() % 500;
-				//cout << "x: " << x << " y: " << y << " z: " << z << endl;
 				controlPoints[i].push_back(vec4(x,y,z));
 			}
 		}
 	}
 
 	void createInterpolatedPoints(int m) {
-		float distanceUnit = 1.0 / (m - 1); // világ 1km azaz 1000m széles és hosszú
+		float distanceUnit = 1.0 / (m - 1);
 
 		for (size_t i = 0; i < m; i++) {
 			// a sor tárolójának létrehozása
@@ -384,8 +381,8 @@ class BezierSurface {
 		float z = 0;
 		for (size_t i = 0; i < controlPoints.size(); i++) {
 			for (size_t j = 0; j < controlPoints[i].size(); j++) {
-				float Wx = Weight(controlPoints[i].size()-1, j, u);
-				float Wy = Weight(controlPoints.size()-1, i, v);
+				float Wx = Weight(controlPoints[i].size() - 1, j, u);
+				float Wy = Weight(controlPoints.size() - 1, i, v);
 				z += Wx*Wy*controlPoints[i][j]['z'];
 			}
 		}
@@ -412,10 +409,8 @@ class BezierSurface {
 		vector<Triangle3D> surface;
 		// sorok
 		for (size_t i = 0; i < points.size() - 1; i++) {
-			//cout << "i: " << i << endl;
 			// pontok egy soron belül
 			for (size_t j = 0; j < points[i].size() - 1; j++) {
-				//cout << "j: " << j << endl;
 				surface.push_back(Triangle3D(
 					points[i][j],
 					points[i][j + 1],
@@ -440,7 +435,7 @@ public:
 	}
 
 	void draw() {
-		drawSurface(controlSurface);
+		//drawSurface(controlSurface);
 		drawSurface(interpolatedSurface);
 	}
 
