@@ -205,9 +205,9 @@ public:
 	void Animate(float t) {
 
 		position = vec4(0, 0, 0);
-		scale = vec4(1000,1000,1000);
-		rotation = vec4(-90.0*(3.14 / 180) + 0.3, 0, t);
-		//rotation = vec4(0,0,0);
+		scale = vec4(500,500,500);
+		//rotation = vec4(-90.0*(3.14 / 180) + 0.3, 0, t);
+		rotation = vec4(0,0,0);
 
 		// commit uniform variables
 		mat4 WorldViewRotationZ(
@@ -334,11 +334,61 @@ public:
 		else printf("uniform MVP cannot be set\n");
 
 		glBindVertexArray(vao);	// make the vao and its vbos active playing the role of the data source
-		glDrawArrays(GL_TRIANGLES, 0, 3);	// draw a single triangle with vertices defined in vao
+		glDrawArrays(GL_LINE_LOOP, 0, 3);	// draw a single triangle with vertices defined in vao
 	}
 };
 
+
 using namespace std;
+
+class Point {
+
+	vector<Triangle3D> triangles;
+public:
+	Point(vec4 p):triangles(vector<Triangle3D>()) {
+		mat4 T = mat4(
+			1, 0, 0, 0,
+			0, 1, 0, 0,
+			0, 0, 1, 0,
+			p['x'], p['y'], p['z'], 1
+		);
+
+		mat4 S = mat4(
+			10, 0, 0, 0,
+			0, 10, 0, 0,
+			0, 0, 10, 0,
+			0, 0, 0, 1
+		);
+
+		mat4 M = S*T;
+		triangles.push_back(Triangle3D(
+			vec4(0, 0, 0)*M,
+			vec4(1, 1, 2)*M,
+			vec4(1, -1, 2)*M
+		));
+		triangles.push_back(Triangle3D(
+			vec4(0, 0, 0)*M,
+			vec4(1, -1, 2)*M,
+			vec4(-1, -1, 2)*M
+		));
+		triangles.push_back(Triangle3D(
+			vec4(0, 0, 0)*M,
+			vec4(-1, -1, 2)*M,
+			vec4(-1, 1, 2)*M
+		));
+		triangles.push_back(Triangle3D(
+			vec4(0, 0, 0)*M,
+			vec4(-1, 1, 2)*M,
+			vec4(1, 1, 2)*M
+		));
+	}
+
+	void draw() {
+		for (size_t i = 0; i < triangles.size(); i++) {
+			triangles[i].Draw();
+		}
+	}
+};
 
 class BezierSurface {
 	vector<vector<vec4>> controlPoints;
@@ -450,6 +500,9 @@ public:
 
 
 std::vector<Triangle3D*> triangles = std::vector<Triangle3D*>();
+
+vector<Point*> points;
+
 BezierSurface BS;
 //LineStrip lineStrip;
 
@@ -527,6 +580,9 @@ void onDisplay() {
 		triangles[i]->Draw();
 	}*/
 	BS.draw();
+	for (size_t i = 0; i < points.size(); i++) {
+		points[i]->draw();
+	}
 	glutSwapBuffers();									// exchange the two buffers
 }
 
@@ -545,6 +601,12 @@ void onMouse(int button, int state, int pX, int pY) {
 	if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {  // GLUT_LEFT_BUTTON / GLUT_RIGHT_BUTTON and GLUT_DOWN / GLUT_UP
 		float cX = 2.0f * pX / windowWidth - 1;	// flip y axis
 		float cY = 1.0f - 2.0f * pY / windowHeight;
+
+		points.push_back(new Point(vec4(
+			cX * 500,
+			cY * 500,
+			0
+			)));
 		//lineStrip.AddPoint(cX, cY);
 		glutPostRedisplay();     // redraw
 	}
