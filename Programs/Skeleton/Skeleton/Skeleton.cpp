@@ -178,6 +178,17 @@ struct vec4 {
 		return result;
 	}
 
+	vec4 operator*(const float& f) {
+		return vec4(v[0]*f, v[1] * f, v[2] * f);
+	}
+
+	vec4 operator+=(const vec4 p) {
+		return *this = *this + p;
+	}
+	vec4 operator+(const vec4 p) {
+		return vec4(v[0] + p.v[0], v[1] + p.v[1], v[2] + p.v[2]);
+	}
+
 	float operator[](char c) {
 		if (c == 'x') return v[0];
 		if (c == 'y') return v[1];
@@ -498,24 +509,141 @@ public:
 	}
 };
 
+class LineStrip {
+		GLuint vao, vbo;        // vertex array object, vertex buffer object
+		float  vertexData[10000]; // interleaved data of coordinates and colors
+		int    nVertices;       // number of vertices
+	public:
+		LineStrip() {
+			nVertices = 0;
+		}
+		void Create() {
+			glGenVertexArrays(1, &vao);
+			glBindVertexArray(vao);
+	
+			glGenBuffers(1, &vbo); // Generate 1 vertex buffer object
+			glBindBuffer(GL_ARRAY_BUFFER, vbo);
+			// Enable the vertex attribute arrays
+			glEnableVertexAttribArray(0);  // attribute array 0
+			glEnableVertexAttribArray(1);  // attribute array 1
+			// Map attribute array 0 to the vertex data of the interleaved vbo
+			glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), reinterpret_cast<void*>(0)); // attribute array, components/attribute, component type, normalize?, stride, offset
+			// Map attribute array 1 to the color data of the interleaved vbo
+			glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), reinterpret_cast<void*>(2 * sizeof(float)));
+		}
+	
+		void clear() {
+			nVertices = 0;
+		}
+
+		void AddPoint(float cX, float cY) {
+			glBindBuffer(GL_ARRAY_BUFFER, vbo);
+			if (nVertices >= 2000) return;
+	
+			vec4 wVertex = vec4(cX, cY, 0, 1);
+			// fill interleaved data
+			vertexData[5 * nVertices]     = wVertex.v[0];
+			vertexData[5 * nVertices + 1] = wVertex.v[1];
+			vertexData[5 * nVertices + 2] = 1; // red
+			vertexData[5 * nVertices + 3] = 1; // green
+			vertexData[5 * nVertices + 4] = 0; // blue
+			nVertices++;
+			// copy data to the GPU
+			glBufferData(GL_ARRAY_BUFFER, nVertices * 5 * sizeof(float), vertexData, GL_DYNAMIC_DRAW);
+		}
+	
+		void Draw() {
+			if (nVertices > 0) {
+				/*mat4 VPTransform = mat4();
+	
+				int location = glGetUniformLocation(shaderProgram, "MVP");
+				if (location >= 0) glUniformMatrix4fv(location, 1, GL_TRUE, VPTransform);
+				else printf("uniform MVP cannot be set\n");*/
+	
+				glBindVertexArray(vao);
+				glDrawArrays(GL_LINE_STRIP, 0, nVertices);
+			}
+		}
+	};
+
+class LagrangeSpline {
+	vector<vec4> controlPoints;
+	vector<float> controlTimes;
+	vector<vec4> interpolatedPoints;
+	LineStrip controlLine;
+	LineStrip interpolatedLine;
+
+	float weight(size_t k, float t) {
+		float result = 1;
+		for (size_t i = 0; i < controlTimes.size(); i++) {
+			if (i != k) {
+				result *= (t - controlTimes[i]) / (controlTimes[k] - controlTimes[i]);
+			}
+		}
+		return result;
+	}
+
+	vec4 getPositionAtTime(float t) {
+		vec4 position;
+		for (size_t i = 0; i < controlPoints.size(); i++) {
+			position += controlPoints[i]* weight(i, t);
+		}
+		return position;
+	}
+
+	void createInterpolatedPoints() {
+		// TODO
+
+		interpolatedLine = LineStrip();
+		interpolatedLine.Create();
+		interpolatedLine.clear();
+		for (size_t i = 0; i < controlPoints.size() - 1; i++) {
+			for (size_t j = 0; j < 20; j++) {
+				interpolatedPoints.push_back(getPositionAtTime(
+					controlTimes[i] + (controlTimes[i+1]- controlTimes[i])/20*j
+				));
+				interpolatedLine.AddPoint(interpolatedPoints.back()['x'], interpolatedPoints.back()['y']);
+			}
+		}
+		interpolatedLine.AddPoint(controlPoints.back()['x'], controlPoints.back()['y']);
+	}
+
+	void createControlLine() {
+		// TODO
+		controlLine = LineStrip();
+		controlLine.Create();
+		for (size_t i = 0; i < controlPoints.size(); i++) {
+			controlLine.AddPoint(controlPoints[i]['x'], controlPoints[i]['y']);
+		}
+	}
+public:
+	void addControlPoint(vec4 newPoint, float time) {
+		controlPoints.push_back(newPoint);
+		controlTimes.push_back(time);
+		createControlLine();
+		interpolatedPoints.clear();
+		createInterpolatedPoints();
+	}
+
+	void draw() {
+		controlLine.Draw();
+		interpolatedLine.Draw();
+	}
+};
+
+
 
 std::vector<Triangle3D*> triangles = std::vector<Triangle3D*>();
 
 vector<Point*> points;
 
 BezierSurface BS;
+LagrangeSpline LS;
 //LineStrip lineStrip;
 
 // Initialization, create an OpenGL context
 void onInitialization() {
 	glViewport(0, 0, windowWidth, windowHeight);
-
-	// Create objects by setting up their vertex data on the GPU
-	//lineStrip.Create();
-	//triangle.Create(vec4(10, 10, 0), vec4(10, -10, 0.75), vec4(-10, -10, 1.5));
-	//triangle2.Create(vec4(-10,10,0), vec4(0, 10, 0.75), vec4(-10, 0, 1.5));
-
-
 
 	// Create vertex shader from string
 	unsigned int vertexShader = glCreateShader(GL_VERTEX_SHADER);
@@ -583,6 +711,7 @@ void onDisplay() {
 	for (size_t i = 0; i < points.size(); i++) {
 		points[i]->draw();
 	}
+	LS.draw();
 	glutSwapBuffers();									// exchange the two buffers
 }
 
@@ -602,11 +731,19 @@ void onMouse(int button, int state, int pX, int pY) {
 		float cX = 2.0f * pX / windowWidth - 1;	// flip y axis
 		float cY = 1.0f - 2.0f * pY / windowHeight;
 
+		long time = glutGet(GLUT_ELAPSED_TIME); // elapsed time since the start of the program
+		float sec = time / 1000.0f;				// convert msec to sec
+
 		points.push_back(new Point(vec4(
 			cX * 500,
 			cY * 500,
 			0
 			)));
+		LS.addControlPoint(vec4(
+			cX * 500,
+			cY * 500,
+			0
+		), sec);
 		//lineStrip.AddPoint(cX, cY);
 		glutPostRedisplay();     // redraw
 	}
