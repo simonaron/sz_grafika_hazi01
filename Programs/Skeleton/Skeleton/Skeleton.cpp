@@ -189,6 +189,14 @@ struct vec4 {
 		return vec4(v[0] + p.v[0], v[1] + p.v[1], v[2] + p.v[2]);
 	}
 
+	vec4 normalize() {
+		return *this*(1 / this->length());
+	}
+
+	float length() {
+		return sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+	}
+
 	float& operator[](char c) {
 		if (c == 'x') return v[0];
 		if (c == 'y') return v[1];
@@ -304,6 +312,10 @@ public:
 
 	void Animate(float t) {
 		
+	}
+
+	void set(vec4 v1, vec4 v2, vec4 v3) {
+
 	}
 
 	void Draw() {
@@ -614,13 +626,16 @@ class LagrangeSpline {
 		return result;
 	}
 
-	vec4 getPositionAtTime(float t) {
-		vec4 position;
-		for (size_t i = 0; i < controlPoints.size(); i++) {
-			position += controlPoints[i]* weight(i, t);
+	float derivatedWeight(size_t k, float t) {
+		float result = 0;
+		for (size_t i = 0; i < controlTimes.size(); i++) {
+			if (i != k) {
+				result += 1 / (t - controlTimes[i]);
+			}
 		}
-		return position;
+		return result*weight(k,t);
 	}
+
 
 	void createInterpolatedPoints() {
 		// TODO
@@ -647,6 +662,20 @@ class LagrangeSpline {
 			controlLine.AddPoint(controlPoints[i]['x'], controlPoints[i]['y']);
 		}
 	}
+	vec4 getPositionAtTime(float t) {
+		vec4 position;
+		for (size_t i = 0; i < controlPoints.size(); i++) {
+			position += controlPoints[i] * weight(i, t);
+		}
+		return position;
+	}
+	vec4 getDirectionAtTime(float t) {
+		vec4 position;
+		for (size_t i = 0; i < controlPoints.size(); i++) {
+			position += controlPoints[i] * derivatedWeight(i, t);
+		}
+		return position;
+	}
 public:
 	void addControlPoint(vec4 newPoint, float time) {
 		controlPoints.push_back(newPoint);
@@ -660,16 +689,78 @@ public:
 		//controlLine.Draw();
 		interpolatedLine.Draw();
 	}
+
+	vec4 getPositionAtRelativeTime(float t) {
+		return getPositionAtTime(t + controlTimes[0]);
+	}
+
+	vec4 getDirectionAtRelativeTime(float t) {
+		return getDirectionAtTime(t + controlTimes[0]);
+	}
+
+	float getTimeLength() {
+		return controlTimes.back() - controlTimes[0];
+	}
+
+	size_t getNumberOfControls() { return controlTimes.size(); }
 };
 
 
+BezierSurface BS;
+LagrangeSpline LS;
 
-std::vector<Triangle3D*> triangles = std::vector<Triangle3D*>();
+class Bike {
+	vector<Triangle3D> triangles;
+public:
+	void animate(float t) {
+		vec4 p1;
+		vec4 p2(1, -1);
+		vec4 p3(0, 1);
+		vec4 p4(-1, -1);
+
+		vec4 pos = LS.getPositionAtRelativeTime(t);
+		vec4 dir = LS.getDirectionAtRelativeTime(t).normalize();
+		dir = vec4(dir['y'], dir['x']);
+		//cout << "pos: " << pos['x'] << " : " << pos['y'] << endl;
+
+		mat4 T(
+			1, 0, 0, 0,
+			0, 1, 0, 0,
+			0, 0, 1, 0,
+			pos['x'], pos['y'], 0, 1
+		);
+
+		mat4 S(
+			20, 0, 0, 0,
+			0, 20, 0, 0,
+			0, 0, 20, 0,
+			0,0, 0, 1
+		);
+
+		mat4 R(
+			dir['x'], -dir['y'], 0, 0,
+			dir['y'], dir['x'], 0, 0,
+			0, 0, 1, 0,
+			0, 0, 0, 1
+		);
+		mat4 M = S*R*T;
+		if (triangles.size() < 2) { triangles.push_back(Triangle3D(p1*M, p2*M, p3*M)); triangles.push_back(Triangle3D(p1*M, p3*M, p4*M)); }
+		triangles[0] = Triangle3D(p1*M, p2*M, p3*M);
+		triangles[1] = Triangle3D(p1*M, p3*M, p4*M);
+	}
+
+	void draw() {
+		for (size_t i = 0; i < triangles.size(); i++) {
+			triangles[i].Draw();
+		}
+	}
+};
+
 
 vector<Point*> points;
 
-BezierSurface BS;
-LagrangeSpline LS;
+Bike bike;
+
 //LineStrip lineStrip;
 
 // Initialization, create an OpenGL context
@@ -716,11 +807,6 @@ void onInitialization() {
 
 	camera = new Camera3D();
 
-	triangles.push_back(new Triangle3D(vec4(5, 5, -5), vec4(5, -5, -5), vec4(-5, -5, -5)));
-	triangles.push_back(new Triangle3D(vec4(5, 5, -5), vec4(-5, 5, -5), vec4(-5, -5, -5)));
-	triangles.push_back(new Triangle3D(vec4(-5, -5, -5), vec4(-5, -5, 5), vec4(5, -5, -5)));
-	triangles.push_back(new Triangle3D(vec4(5, -5, 5), vec4(-5, -5, 5), vec4(5, -5, -5)));
-
 	BS.createControlSurface();
 	BS.createInterpolatedSurface();
 }
@@ -735,14 +821,12 @@ void onDisplay() {
 	glClearColor(0, 0, 0, 0);							// background color 
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // clear the screen
 
-	/*for (unsigned int i = 0; i < triangles.size(); i++) {
-		triangles[i]->Draw();
-	}*/
 	BS.draw();
 	for (size_t i = 0; i < points.size(); i++) {
 		points[i]->draw();
 	}
 	LS.draw();
+	bike.draw();
 	glutSwapBuffers();									// exchange the two buffers
 }
 
@@ -788,12 +872,13 @@ void onMouseMotion(int pX, int pY) {
 void onIdle() {
 	long time = glutGet(GLUT_ELAPSED_TIME); // elapsed time since the start of the program
 	float sec = time / 1000.0f;				// convert msec to sec
-	camera->Animate(sec);					// animate the camera
-	//triangle.Animate(sec);					// animate the triangle object
-	//triangle2.Animate(sec);					// animate the triangle object
-	for (unsigned int i = 0; i < triangles.size(); i++) {
-		triangles[i]->Animate(sec);
-	}
+	
+	if(LS.getNumberOfControls()>1 && time%10==0)
+		bike.animate((sec/10 - floor(sec/10 / LS.getTimeLength())*LS.getTimeLength()));
+
+	camera->Animate(sec);
+
+
 	glutPostRedisplay();					// redraw the scene
 }
 
