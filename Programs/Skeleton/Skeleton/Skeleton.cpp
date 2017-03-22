@@ -224,9 +224,9 @@ public:
 	void Animate(float t) {
 
 		position = vec4(0, 0, 0);
-		scale = vec4(500,500,500);
-		//rotation = vec4(-90.0*(3.14 / 180) + 0.3, 0, t);
-		rotation = vec4(0,0,0);
+		scale = vec4(800,800,800);
+		rotation = vec4(-90.0*(3.14 / 180) + 0.3, 0, t);
+		//rotation = vec4(0,0,0);
 
 		// commit uniform variables
 		mat4 WorldViewRotationZ(
@@ -418,6 +418,7 @@ class BezierSurface {
 	vector<vector<vec4>> interpolatedPoints;
 	vector<Triangle3D> controlSurface;
 	vector<Triangle3D> interpolatedSurface;
+	vector<Triangle3D> grads;
 
 	void createControlPoints(int n) {
 		n = 5;
@@ -481,6 +482,7 @@ class BezierSurface {
 		}
 	}
 
+
 	float getHeightAtPosition(float u, float v) {
 		float z = 0;
 		for (size_t i = 0; i < controlPoints.size(); i++) {
@@ -532,15 +534,42 @@ class BezierSurface {
 	}
 
 public:
+	void createGrads() {
+		size_t m = interpolatedPoints.size();
+		float distanceUnit = 1.0 / (m - 1);
+
+		for (size_t i = 0; i < m; i++) {
+			// a sor tárolójának létrehozása
+			//interpolatedPoints.push_back(vector<vec4>());
+			for (size_t j = 0; j < m; j++) {
+				float u = j * distanceUnit; // 0 - 1
+				float v = i * distanceUnit;
+				float z = getHeightAtPosition(u, v);
+				//cout << "x: " << x << " y: " << y << " z: " << z << endl;
+				//interpolatedPoints[i].push_back(vec4(u * 1000 - 500, v * 1000 - 500, z));
+
+				grads.push_back(Triangle3D(
+					vec4(u * 1000 - 500, v * 1000 - 500, z),
+					vec4(u * 1000 - 510, v * 1000 - 510, z),// picit
+															//vec4(u * 1000 - 510, v * 1000 - 510, z+30)// picit
+					vec4(u * 1000 - 500, v * 1000 - 500, z) + getRollPosition(u, v)
+
+				));
+			}
+		}
+	}
 	// default constructor
 	BezierSurface() {
-		createControlPoints(4);
-		createInterpolatedPoints(20);
+		createControlPoints(5);
+		createInterpolatedPoints(11);
 	}
 
 	void draw() {
 		//drawSurface(controlSurface);
 		drawSurface(interpolatedSurface);
+			/*for (size_t i = 0; i < grads.size(); i++) {
+				grads[i].Draw();
+			}*/
 	}
 
 	void createControlSurface() {
@@ -549,6 +578,25 @@ public:
 
 	void createInterpolatedSurface() {
 		interpolatedSurface = createSurface(interpolatedPoints);
+	}
+
+	float derivatedWeight(size_t n, size_t i,float u) {
+		return ((float)factorial(n) / (factorial(i)*factorial(n - i)) * (
+			i*pow(u, i-1) * pow(1 - u, n - i)) + pow(u, i) * (n-i)* pow(1 - u, n - i-1)*(-1)
+		);
+	}
+
+	vec4 getRollPosition(float u, float v) {//, vec4 e) {
+		// ??????
+		vec4 z;
+		for (size_t i = 0; i < controlPoints.size(); i++) {
+			for (size_t j = 0; j < controlPoints[i].size(); j++) {
+				float Wx = derivatedWeight(controlPoints[i].size() - 1, j, u);// *e.normalize()['x'];
+				float Wy = derivatedWeight(controlPoints.size() - 1, i, v);// *e.normalize()['y'];
+				z += controlPoints[i][j]* Wx*Wy;
+			}
+		}
+		return z;//atan(z['z']/vec4(z['x'], z['y']).length());
 	}
 };
 
@@ -722,7 +770,7 @@ public:
 		vec4 dir = LS.getDirectionAtRelativeTime(t).normalize();
 		dir = vec4(dir['y'], dir['x']);
 		//cout << "pos: " << pos['x'] << " : " << pos['y'] << endl;
-
+		//cout << BS.getRollPosition((pos['x'] + 500) / 1000.0, (pos['x'] + 500) / 1000.0, dir)<<endl;
 		mat4 T(
 			1, 0, 0, 0,
 			0, 1, 0, 0,
@@ -809,6 +857,7 @@ void onInitialization() {
 
 	BS.createControlSurface();
 	BS.createInterpolatedSurface();
+	BS.createGrads();
 }
 
 void onExit() {
